@@ -1,0 +1,7 @@
+hostname, port
+www.google.com,443
+letsencrypt.org,443
+wikipedia.com,443
+2.204.112.240,443
+hostnamethatdefinitelydoesntexist.com,443
+edi.bmwgroup.com,6619

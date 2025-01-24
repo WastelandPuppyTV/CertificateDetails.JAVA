@@ -1,5 +1,0 @@
-www.google.com
-letsencrypt.org
-wikipedia.com
-2.204.112.240
-hostnamethatdefinitelydoesntexist.com

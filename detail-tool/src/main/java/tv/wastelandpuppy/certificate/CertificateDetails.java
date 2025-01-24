@@ -18,9 +18,9 @@ import javax.net.ssl.SSLSocketFactory;
 
 public class CertificateDetails {
 
-    public static X509Certificate getCertificate(String hostname) throws Exception {
+    public static X509Certificate getCertificate(String hostname, int port) throws Exception {
         SSLSocketFactory factory = (SSLSocketFactory) SSLSocketFactory.getDefault();
-        try (SSLSocket socket = (SSLSocket) factory.createSocket(hostname, 443)) {
+        try (SSLSocket socket = (SSLSocket) factory.createSocket(hostname, port)) {
             socket.startHandshake();
             Certificate[] certs = socket.getSession().getPeerCertificates();
             return (X509Certificate) certs[0];
@@ -52,7 +52,7 @@ public class CertificateDetails {
 
     public static void main(String[] args) {
         List<String[]> results = new ArrayList<>();
-        String filePath = "hosts.txt"; // Update this path if necessary
+        String filePath = "hosts.csv"; // Update this path if necessary
 
         File file = new File(filePath);
         if (!file.exists()) {
@@ -61,22 +61,26 @@ public class CertificateDetails {
         }
 
         try (BufferedReader br = new BufferedReader(new FileReader(file))) {
-            String hostname;
-            while ((hostname = br.readLine()) != null) {
+            String line;
+            br.readLine(); // Skip header
+            while ((line = br.readLine()) != null) {
+                String[] nextLine = line.split(",");
+                String hostname = nextLine[0];
+                int port = Integer.parseInt(nextLine[1]);
                 try {
-                    X509Certificate certificate = getCertificate(hostname);
+                    X509Certificate certificate = getCertificate(hostname, port);
                     String commonName = extractCommonName(certificate);
                     List<String> sans = extractSANs(certificate);
 
                     if (sans.isEmpty()) {
-                        results.add(new String[]{hostname, commonName, "", ""});
+                        results.add(new String[]{hostname, String.valueOf(port), commonName, "", ""});
                     } else {
                         for (String san : sans) {
-                            results.add(new String[]{hostname, commonName, san, ""});
+                            results.add(new String[]{hostname, String.valueOf(port), commonName, san, ""});
                         }
                     }
                 } catch (Exception e) {
-                    results.add(new String[]{hostname, "error", "error", e.toString()});
+                    results.add(new String[]{hostname, String.valueOf(port), "error", "error", e.toString()});
                 }
             }
         } catch (IOException e) {
@@ -85,7 +89,7 @@ public class CertificateDetails {
 
         // Write the CSV output to a file
         try (PrintWriter writer = new PrintWriter(new FileWriter("certificate_details.csv"))) {
-            writer.println("hostname,subject common name,subject alternate name,comment");
+            writer.println("hostname,port,subject common name,subject alternate name,comment");
             for (String[] result : results) {
                 writer.println(String.join(",", result));
             }
