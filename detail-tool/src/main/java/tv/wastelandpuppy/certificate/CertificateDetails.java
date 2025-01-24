@@ -76,7 +76,7 @@ public class CertificateDetails {
                         }
                     }
                 } catch (Exception e) {
-                    results.add(new String[]{hostname, "error", "error", e.getMessage()});
+                    results.add(new String[]{hostname, "error", "error", e.toString()});
                 }
             }
         } catch (IOException e) {
