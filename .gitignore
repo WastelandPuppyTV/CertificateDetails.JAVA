@@ -1,3 +1,5 @@
 .vscode/settings.json
-certificate_details.csv
+bin/*
+certs.csv
 other_hosts.csv
+other_certs.csv

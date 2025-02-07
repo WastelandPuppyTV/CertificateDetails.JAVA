@@ -53,16 +53,25 @@ public class CertificateDetails {
     }
 
     public static void main(String[] args) {
-        List<String[]> results = new ArrayList<>();
-        String filePath = "hosts.csv"; // Update this path if necessary
+        String inputFilePath = "hosts.csv";
+        String outputFilePath = "certs.csv";
 
-        File file = new File(filePath);
-        if (!file.exists()) {
-            System.err.println("File not found: " + filePath);
+        if (args.length > 0) {
+            inputFilePath = args[0];
+        }
+        if (args.length > 1) {
+            outputFilePath = args[1];
+        }
+
+        List<String[]> results = new ArrayList<>();
+
+        File inputFile = new File(inputFilePath);
+        if (!inputFile.exists()) {
+            System.err.println("File not found: " + inputFilePath);
             return;
         }
 
-        try (BufferedReader br = new BufferedReader(new FileReader(file))) {
+        try (BufferedReader br = new BufferedReader(new FileReader(inputFile))) {
             String line;
             br.readLine(); // Skip header
             while ((line = br.readLine()) != null) {
@@ -90,7 +99,7 @@ public class CertificateDetails {
         }
 
         // Write the CSV output to a file
-        try (PrintWriter writer = new PrintWriter(new FileWriter("certificate_details.csv"))) {
+        try (PrintWriter writer = new PrintWriter(new FileWriter(outputFilePath))) {
             writer.println("hostname,port,subject common name,subject alternate name,comment");
             for (String[] result : results) {
                 writer.println(String.join(",", result));
@@ -99,6 +108,6 @@ public class CertificateDetails {
             e.printStackTrace();
         }
 
-        System.out.println("Results written to certificate_details.csv");
+        System.out.println("Results written to " + outputFilePath);
     }
 }
