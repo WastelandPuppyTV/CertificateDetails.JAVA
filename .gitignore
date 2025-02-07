@@ -1,5 +1,3 @@
-certificateDetails.json
 .vscode/settings.json
-certificate_details.json
-detail-tool/target/
 certificate_details.csv
+other_hosts.csv

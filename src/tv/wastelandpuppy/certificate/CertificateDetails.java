@@ -32,8 +32,10 @@ public class CertificateDetails {
         Collection<List<?>> altNames = certificate.getSubjectAlternativeNames();
         if (altNames != null) {
             for (List<?> altName : altNames) {
-                if (altName.get(1) instanceof String) {
-                    sans.add((String) altName.get(1));
+                Integer type = (Integer) altName.get(0);
+                Object value = altName.get(1);
+                if (value instanceof String) {
+                    sans.add(type + ": " + value);
                 }
             }
         }
@@ -43,8 +45,8 @@ public class CertificateDetails {
     public static String extractCommonName(X509Certificate certificate) throws Exception {
         String dn = certificate.getSubjectX500Principal().getName();
         for (String part : dn.split(",")) {
-            if (part.startsWith("CN=")) {
-                return part.substring(3);
+            if (part.trim().startsWith("CN=")) {
+                return part.trim().substring(3);
             }
         }
         return null;
