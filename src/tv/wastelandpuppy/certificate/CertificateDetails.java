@@ -18,6 +18,10 @@ import javax.net.ssl.SSLSocketFactory;
 
 public class CertificateDetails {
 
+    // Default file names
+    private static final String DEFAULT_INPUT_FILE = "hosts.csv";
+    private static final String DEFAULT_OUTPUT_FILE = "certs.csv";
+
     // ANSI escape codes for colors
     public static final String RESET = "\u001B[0m";
     public static final String RED = "\u001B[31m";
@@ -26,51 +30,10 @@ public class CertificateDetails {
     public static final String BLUE = "\u001B[34m";
     public static final String CYAN = "\u001B[36m";
 
-    public static X509Certificate getCertificate(String hostname, int port) throws Exception {
-        SSLSocketFactory factory = (SSLSocketFactory) SSLSocketFactory.getDefault();
-        try (SSLSocket socket = (SSLSocket) factory.createSocket(hostname, port)) {
-            socket.startHandshake();
-            Certificate[] certs = socket.getSession().getPeerCertificates();
-            return (X509Certificate) certs[0];
-        }
-    }
-
-    public static List<String> extractSANs(X509Certificate certificate) throws CertificateParsingException {
-        List<String> sans = new ArrayList<>();
-        Collection<List<?>> altNames = certificate.getSubjectAlternativeNames();
-        if (altNames != null) {
-            for (List<?> altName : altNames) {
-                Integer type = (Integer) altName.get(0);
-                Object value = altName.get(1);
-                if (value instanceof String) {
-                    sans.add(type + ": " + value);
-                }
-            }
-        }
-        return sans;
-    }
-
-    public static String extractCommonName(X509Certificate certificate) throws Exception {
-        String dn = certificate.getSubjectX500Principal().getName();
-        for (String part : dn.split(",")) {
-            if (part.trim().startsWith("CN=")) {
-                return part.trim().substring(3);
-            }
-        }
-        return null;
-    }
-
     public static void main(String[] args) {
-        String inputFilePath = "hosts.csv";
-        String outputFilePath = "certs.csv";
-
-        if (args.length > 0) {
-            inputFilePath = args[0];
-        }
-        if (args.length > 1) {
-            outputFilePath = args[1];
-        }
-
+        String inputFilePath = getInputFilePath(args);
+        String outputFilePath = getOutputFilePath(args);
+        
         List<String[]> results = new ArrayList<>();
 
         File inputFile = new File(inputFilePath);
@@ -81,47 +44,117 @@ public class CertificateDetails {
 
         System.out.println(CYAN + "Starting certificate processing..." + RESET);
 
-        try (BufferedReader br = new BufferedReader(new FileReader(inputFile))) {
-            String line;
-            br.readLine(); // Skip header
-            while ((line = br.readLine()) != null) {
-                String[] nextLine = line.split(",");
-                String hostname = nextLine[0];
-                int port = Integer.parseInt(nextLine[1].trim());
-                System.out.println(YELLOW + "----------------------------------------" + RESET);
-                System.out.println(BLUE + "Processing: " + hostname + ":" + port + RESET);
-                try {
-                    X509Certificate certificate = getCertificate(hostname, port);
-                    String commonName = extractCommonName(certificate);
-                    List<String> sans = extractSANs(certificate);
-
-                    if (sans.isEmpty()) {
-                        results.add(new String[]{hostname, String.valueOf(port), commonName, "", ""});
-                    } else {
-                        for (String san : sans) {
-                            results.add(new String[]{hostname, String.valueOf(port), commonName, san, ""});
-                        }
-                    }
-                    System.out.println(GREEN + "Successfully processed: " + hostname + ":" + port + RESET);
-                } catch (Exception e) {
-                    results.add(new String[]{hostname, String.valueOf(port), "error", "error", e.toString()});
-                    System.err.println(RED + "Error processing: " + hostname + ":" + port + " - " + e.getMessage() + RESET);
-                }
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
-        // Write the CSV output to a file
-        try (PrintWriter writer = new PrintWriter(new FileWriter(outputFilePath))) {
-            writer.println("hostname,port,subject common name,subject alternate name,comment");
-            for (String[] result : results) {
-                writer.println(String.join(",", result));
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        results.addAll(processHosts(inputFile));
+        writeResultsToFile(outputFilePath, results);
 
         System.out.println(CYAN + "Results written to " + outputFilePath + RESET);
     }
+
+    private static List<String[]> processHosts(File inputFile) {
+        ArrayList<String[]> resultLines = new ArrayList<String[]>();
+        try (BufferedReader bufferedReader = new BufferedReader(new FileReader(inputFile))) {
+            String line;
+            bufferedReader.readLine(); // Skip header
+            while ((line = bufferedReader.readLine()) != null) {
+                String[] columns = line.split(",");
+                String hostname = columns[0];
+                int port = Integer.parseInt(columns[1].trim());
+                List<String[]> hostResults = processHost(hostname, port);
+                resultLines.addAll(hostResults);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        return resultLines;
+    }
+
+    public static List<String[]> processHost(String hostname, int port) {
+        List<String[]> resultLines = new ArrayList<>();
+        System.out.println(YELLOW + "----------------------------------------" + RESET);
+        System.out.println(BLUE + "Processing: " + hostname + ":" + port + RESET);
+        try {
+            X509Certificate certificate = getCertificate(hostname, port);
+            String commonName = extractCommonName(certificate);
+            List<String> subjectAlternativeNames = extractSubjectAlternativeNames(certificate);
+
+            if (subjectAlternativeNames.isEmpty()) {
+                resultLines.add(new String[] { hostname, String.valueOf(port), commonName, "", "" });
+            } else {
+                for (String san : subjectAlternativeNames) {
+                    resultLines.add(new String[] { hostname, String.valueOf(port), commonName, san, "" });
+                }
+            }
+            System.out.println(GREEN + "Successfully processed: " + hostname + ":" + port + RESET);
+        } catch (Exception e) {
+            resultLines.add(new String[] { hostname, String.valueOf(port), "error", "error", e.toString() });
+            System.err.println(RED + "Error processing: " + hostname + ":" + port + " - " + e.getMessage() + RESET);
+        }
+        return resultLines;
+    }
+
+    public static X509Certificate getCertificate(String hostname, int port) throws Exception {
+        SSLSocketFactory sslSocketFactory = (SSLSocketFactory) SSLSocketFactory.getDefault();
+        try (SSLSocket sslSocket = (SSLSocket) sslSocketFactory.createSocket(hostname, port)) {
+            sslSocket.startHandshake();
+            Certificate[] certificates = sslSocket.getSession().getPeerCertificates();
+            return (X509Certificate) certificates[0];
+        }
+    }
+
+    public static String extractCommonName(X509Certificate certificate) throws Exception {
+        String distinguishedName = certificate.getSubjectX500Principal().getName();
+        for (String part : distinguishedName.split(",")) {
+            if (part.trim().startsWith("CN=")) {
+                return part.trim().substring(3);
+            }
+        }
+        return null;
+    }
+
+    public static List<String> extractSubjectAlternativeNames(X509Certificate certificate)
+            throws CertificateParsingException {
+        List<String> subjectAlternativeNames = new ArrayList<>();
+        Collection<List<?>> altNames = certificate.getSubjectAlternativeNames();
+        if (altNames != null) {
+            for (List<?> altName : altNames) {
+                Integer type = (Integer) altName.get(0);
+                Object value = altName.get(1);
+                if (value instanceof String) {
+                    subjectAlternativeNames.add(type + ": " + value);
+                }
+            }
+        }
+        return subjectAlternativeNames;
+    }
+
+    private static String getOutputFilePath(String[] args) {
+        String outputFilePath = DEFAULT_OUTPUT_FILE;
+
+        if (args.length > 1) {
+            outputFilePath = args[1];
+        }
+        return outputFilePath;
+    }
+
+    private static String getInputFilePath(String[] args) {
+        String inputFilePath = DEFAULT_INPUT_FILE;
+
+        if (args.length > 0) {
+            inputFilePath = args[0];
+        }
+        return inputFilePath;
+    }
+
+    public static void writeResultsToFile(String outputFilePath, List<String[]> results) {
+        try (PrintWriter printWriter = new PrintWriter(new FileWriter(outputFilePath))) {
+            printWriter.println("hostname,port,subject common name,subject alternate name,comment");
+            for (String[] result : results) {
+                printWriter.println(String.join(",", result));
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
 }
