@@ -18,6 +18,14 @@ import javax.net.ssl.SSLSocketFactory;
 
 public class CertificateDetails {
 
+    // ANSI escape codes for colors
+    public static final String RESET = "\u001B[0m";
+    public static final String RED = "\u001B[31m";
+    public static final String GREEN = "\u001B[32m";
+    public static final String YELLOW = "\u001B[33m";
+    public static final String BLUE = "\u001B[34m";
+    public static final String CYAN = "\u001B[36m";
+
     public static X509Certificate getCertificate(String hostname, int port) throws Exception {
         SSLSocketFactory factory = (SSLSocketFactory) SSLSocketFactory.getDefault();
         try (SSLSocket socket = (SSLSocket) factory.createSocket(hostname, port)) {
@@ -67,9 +75,11 @@ public class CertificateDetails {
 
         File inputFile = new File(inputFilePath);
         if (!inputFile.exists()) {
-            System.err.println("File not found: " + inputFilePath);
+            System.err.println(RED + "File not found: " + inputFilePath + RESET);
             return;
         }
+
+        System.out.println(CYAN + "Starting certificate processing..." + RESET);
 
         try (BufferedReader br = new BufferedReader(new FileReader(inputFile))) {
             String line;
@@ -77,7 +87,9 @@ public class CertificateDetails {
             while ((line = br.readLine()) != null) {
                 String[] nextLine = line.split(",");
                 String hostname = nextLine[0];
-                int port = Integer.parseInt(nextLine[1]);
+                int port = Integer.parseInt(nextLine[1].trim());
+                System.out.println(YELLOW + "----------------------------------------" + RESET);
+                System.out.println(BLUE + "Processing: " + hostname + ":" + port + RESET);
                 try {
                     X509Certificate certificate = getCertificate(hostname, port);
                     String commonName = extractCommonName(certificate);
@@ -90,8 +102,10 @@ public class CertificateDetails {
                             results.add(new String[]{hostname, String.valueOf(port), commonName, san, ""});
                         }
                     }
+                    System.out.println(GREEN + "Successfully processed: " + hostname + ":" + port + RESET);
                 } catch (Exception e) {
                     results.add(new String[]{hostname, String.valueOf(port), "error", "error", e.toString()});
+                    System.err.println(RED + "Error processing: " + hostname + ":" + port + " - " + e.getMessage() + RESET);
                 }
             }
         } catch (IOException e) {
@@ -108,6 +122,6 @@ public class CertificateDetails {
             e.printStackTrace();
         }
 
-        System.out.println("Results written to " + outputFilePath);
+        System.out.println(CYAN + "Results written to " + outputFilePath + RESET);
     }
 }
